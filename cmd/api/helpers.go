@@ -10,21 +10,16 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/jesusangelm/api_galeria/internal/validator"
 	"github.com/julienschmidt/httprouter"
+
+	"github.com/jesusangelm/api_galeria/internal/validator"
 )
 
 type envelope map[string]any
 
 func (app *application) readIDParam(r *http.Request) (int64, error) {
-	// When httprouter is parsing a request, any interpolated URL parameters will be
-	// stored in the request context. We can use the ParamsFromContext() function to
-	// retrieve a slice containing these parameter names and values.
 	params := httprouter.ParamsFromContext(r.Context())
 
-	// params.ByName always return string, so we convert the ID to
-	// base 10 integer (with a bit size of 64).
-	// if convertion fail, we return not found 404 error
 	id, err := strconv.ParseInt(params.ByName("id"), 10, 64)
 	if err != nil || id < 1 {
 		return 0, errors.New("invalid id paramenter")
@@ -34,23 +29,18 @@ func (app *application) readIDParam(r *http.Request) (int64, error) {
 }
 
 func (app *application) readJSON(w http.ResponseWriter, r *http.Request, dst any) error {
-	// Use http.MaxBytesReader() to limit the size of the request body to 1MB.
 	maxBytes := 1_048_576
 	r.Body = http.MaxBytesReader(w, r.Body, int64(maxBytes))
-	// Initialize the json.Decoder, and call the DisallowUnknownFields() method on it
-	// before decoding. This means that if the JSON from the client now includes any
-	// field which cannot be mapped to the target destination, the decoder will return
-	// an error instead of just ignoring the field.
-	// Decode the request body into the target destination.
 	dec := json.NewDecoder(r.Body)
-	dec.DisallowUnknownFields()
+
+	// This generate error messages when a non expected field is in the request
+	// dec.DisallowUnknownFields()
 
 	err := dec.Decode(dst)
 	if err != nil {
 		var syntaxError *json.SyntaxError
 		var unmarshallTypeError *json.UnmarshalTypeError
 		var invalidUnmarshalError *json.InvalidUnmarshalError
-		// Add a new maxBytesError variable.
 		var maxBytesError *http.MaxBytesError
 
 		switch {
@@ -84,10 +74,7 @@ func (app *application) readJSON(w http.ResponseWriter, r *http.Request, dst any
 
 		}
 	}
-	// Call Decode() again, using a pointer to an empty anonymous struct as the
-	// destination. If the request body only contained a single JSON value this will
-	// return an io.EOF error. So if we get anything else, we know that there is
-	// additional data in the request body and we return our own custom error message.
+
 	err = dec.Decode(&struct{}{})
 	if err != io.EOF {
 		return errors.New("body must only contain a single JSON value")
@@ -102,11 +89,8 @@ func (app *application) writeJSON(w http.ResponseWriter, status int, data envelo
 		return err
 	}
 
-	// Append a newline to make it easier to view in terminal applications.
 	js = append(js, '\n')
 
-	// loop through the received headers map and add each header to the
-	// http.ResponseWriter header map
 	for key, value := range headers {
 		w.Header()[key] = value
 	}
