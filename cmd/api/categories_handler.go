@@ -37,7 +37,13 @@ func (app *application) createCategory(w http.ResponseWriter, r *http.Request) {
 
 	err = app.models.Categories.Insert(category)
 	if err != nil {
-		app.serverErrorResponse(w, r, err)
+		switch {
+		case errors.Is(err, data.ErrDuplicateName):
+			v.AddError("name", "a category with this name already exists")
+			app.failedValidationResponse(w, r, v.Errors)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
 		return
 	}
 

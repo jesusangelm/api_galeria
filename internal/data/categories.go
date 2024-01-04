@@ -13,6 +13,8 @@ import (
 	"github.com/jesusangelm/api_galeria/internal/validator"
 )
 
+var ErrDuplicateName = errors.New("duplicate name")
+
 // struct to represent the Category model
 type Category struct {
 	ID          int64     `json:"id"`
@@ -38,13 +40,27 @@ func (m *CategoryModel) Insert(category *Category) error {
 	`
 	args := []interface{}{category.Name, category.Description}
 
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
 	// This will mutate the category struct to add the category.ID
 	// and the category.CreatedAt taken from the recent created record in DB
-	return m.DB.QueryRow(context.Background(), query, args...).Scan(
+	err := m.DB.QueryRow(ctx, query, args...).Scan(
 		&category.ID,
 		&category.CreatedAt,
 		&category.Version,
 	)
+
+	if err != nil {
+		switch {
+		case err.Error() == `ERROR: duplicate key value violates unique constraint "categories_name_key" (SQLSTATE 23505)`:
+			return ErrDuplicateName
+		default:
+			return err
+		}
+	}
+
+	return nil
 }
 
 // Return a single category based on the ID given

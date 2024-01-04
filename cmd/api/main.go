@@ -3,17 +3,23 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/jesusangelm/api_galeria/internal/data"
 	filestorage "github.com/jesusangelm/api_galeria/internal/file_storage"
 	"github.com/jesusangelm/api_galeria/internal/jsonlog"
+	"github.com/jesusangelm/api_galeria/internal/vcs"
 )
 
-const version = "1.0.0"
+var (
+	version = vcs.Version()
+)
 
 type config struct {
 	port int
@@ -39,6 +45,12 @@ type config struct {
 	cors struct {
 		trustedOrigins []string
 	}
+	auth         Auth
+	JWTSecret    string
+	JWTIssuer    string
+	JWTAudience  string
+	CookieDomain string
+	Domain       string
 }
 
 type application struct {
@@ -56,12 +68,12 @@ func main() {
 	flag.IntVar(&cfg.port, "port", 4000, "API Server Port to listen")
 	flag.StringVar(&cfg.env, "env", "development", "Environment (development|staging|production)")
 	// DB Config
-	//export DATABASE_URL='postgres://dbuser:dbpass@dbserver/dbname?sslmode=disable'
-	flag.StringVar(&cfg.db.dsn, "db-dsn", os.Getenv("DATABASE_URL"), "PostgreSQL DSN")
+	// postgres://dbuser:dbpass@dbserver/galeria?sslmode=disable
+	flag.StringVar(&cfg.db.dsn, "db-dsn", "", "PostgreSQL DSN")
 	flag.IntVar(&cfg.db.maxConns, "db-max-conns", 25, "PostgreSQL max open connections")
 	// Rate Limit config
-	flag.Float64Var(&cfg.limiter.rps, "limiter-rps", 2, "Rate limiter maximum request per second")
-	flag.IntVar(&cfg.limiter.burst, "limiter-burst", 4, "Rate limiter maximum burst")
+	flag.Float64Var(&cfg.limiter.rps, "limiter-rps", 4, "Rate limiter maximum request per second")
+	flag.IntVar(&cfg.limiter.burst, "limiter-burst", 6, "Rate limiter maximum burst")
 	flag.BoolVar(&cfg.limiter.enabled, "limiter-enabled", true, "Enable rate limiter")
 	// CORS config
 	flag.Func("cors-trusted-origins", "Trusted CORS origins", func(val string) error {
@@ -75,7 +87,36 @@ func main() {
 	flag.StringVar(&cfg.s3.endpoint, "s3_endpoint", "", "S3 Endpoint")
 	flag.StringVar(&cfg.s3.access_key_id, "s3_akid", "", "S3 Access Key ID")
 	flag.StringVar(&cfg.s3.secret_access_key, "s3_sak", "", "S3 Secret Access Key")
+
+	// JWT Auth settings
+	flag.StringVar(&cfg.JWTSecret, "jwt-secret", "a_secret", "JWT Signing Secret")
+	flag.StringVar(&cfg.JWTIssuer, "jwt-issuer", "ejemplo.com", "JWT Signing Issuer")
+	flag.StringVar(&cfg.JWTAudience, "jwt-audience", "ejemplo.com", "JWT Signing Audience")
+	flag.StringVar(&cfg.CookieDomain, "cookie-domain", "localhost", "Cookie domain")
+	flag.StringVar(&cfg.Domain, "domain", "ejemplo.com", "Domain")
+
+	// Create a new version boolean flag with the default value of false.
+	displayVersion := flag.Bool("version", false, "Display version and exit")
+
 	flag.Parse()
+
+	// If the version flag value is true, then print out the version number and
+	// immediately exit.
+	if *displayVersion {
+		fmt.Printf("Version:\t%s\n", version)
+		os.Exit(0)
+	}
+
+	cfg.auth = Auth{
+		Issuer:        cfg.JWTIssuer,
+		Audience:      cfg.JWTAudience,
+		Secret:        cfg.JWTSecret,
+		TokenExpiry:   time.Minute * 15,
+		RefreshExpiry: time.Minute * 24,
+		CookiePath:    "/",
+		CookieName:    "_Host-refresh_token",
+		CookieDomain:  cfg.CookieDomain,
+	}
 
 	// initialize a new logger
 	logger := jsonlog.New(os.Stdout, jsonlog.LevelInfo)

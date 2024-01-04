@@ -16,10 +16,15 @@ func (app *application) routes() http.Handler {
 
 	// Routes definition
 	router.HandlerFunc(http.MethodGet, "/v1/healthcheck", app.healthcheckHandler)
+	router.HandlerFunc(http.MethodPost, "/v1/authenticate", app.authenticate)
+	router.HandlerFunc(http.MethodGet, "/v1/refresh", app.refreshToken)
+	router.HandlerFunc(http.MethodGet, "/v1/logout", app.logout)
 
 	// Dynamic middleware managed by alice with some custom middlewares
-	dynamic := alice.New() // Auth and similars middleware here
+	dynamic := alice.New(app.authRequired) // Auth and similars middleware here
 
+	// AdminUsers routes
+	router.Handler(http.MethodPost, "/v1/admin_users", dynamic.ThenFunc(app.createAdminUser))
 	// Categories routes
 	router.Handler(http.MethodGet, "/v1/categories", dynamic.ThenFunc(app.listCategories))
 	router.Handler(http.MethodPost, "/v1/categories", dynamic.ThenFunc(app.createCategory))
