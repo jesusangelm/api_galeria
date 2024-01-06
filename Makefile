@@ -63,3 +63,54 @@ build/api:
 	go build -ldflags='-s' -o=./bin/api ./cmd/api
 	GOOS=linux GOARCH=amd64 go build -ldflags='-s' -o=./bin/linux_amd64/api ./cmd/api
 	GOOS=linux GOARCH=arm64 go build -ldflags='-s' -o=./bin/linux_arm64/api ./cmd/api
+
+## container/build: build the podman image of the application
+.PHONY: container/build
+container/build:
+	@echo 'Building podman image of the API...'
+	podman build -t localhost/api_galeria -f Dockerfile .
+
+## container/pgdb_vol/create: create a podman volume for the DB
+.PHONY: container/dbvol/create
+container/dbvol/create:
+	@echo 'Creating a volume for the DB'
+	podman volume create apidb_vol
+
+########################### RUN ##################################
+## container/pod/create: create a pod for the containers
+.PHONY: container/pod/create
+container/pod/create:
+	@echo 'Creating the pod galeria...'
+	podman pod create --name galeria -p ${PG_EXT_PORT}:5432 -p ${PORT}:${PORT}
+
+## docker/run/db: run a PostgreSQL podman container
+.PHONY: container/run/db
+container/run/db:
+	@echo 'Running a container for the DB'
+	podman run -d --pod galeria --restart=unless-stopped --name db_api_galeria \
+	-e POSTGRES_USER=${PG_USER} -e POSTGRES_PASSWORD=${PG_PASSWORD} \
+	-e POSTGRES_DB=${PG_DB} -v apidb_vol:/var/lib/postgresql/data \
+	docker.io/postgres:16-alpine
+
+## docker/run/api: run a podman container using the build podman image
+.PHONY: container/run/api
+container/run/api:
+	@echo 'Running a container of the API Application'
+	podman run -d --pod galeria --restart=unless-stopped \
+	--name api_galeria localhost/api_galeria -db-dsn=${DATABASE_URL} \
+	-cors-trusted-origins=${CORS_TRUSTED_ORIGIN} -s3_bucket=${S3_BUCKET} \
+	-s3_region=${S3_REGION} -s3_endpoint=${S3_ENDPOINT} \
+	-s3_akid=${S3_ACCESS_KEY_ID} -s3_sak=${S3_SECRET_ACCESS_KEY} \
+	-env=${ENV} -port=${PORT} -jwt-secret=${JWT_SECRET} -jwt-issuer=${JWT_ISSUER} \
+	-jwt-audience=${JWT-AUDIENCE} -cookie-domain=${COOKIE_DOMAIN} -domain=${DOMAIN}
+
+################ DEPLOY #################################
+## galeria/deploy: build the app image, create the app pod and run inside all containers related with the galeria app
+.PHONY: galeria/deploy
+galeria/deploy:
+	@echo 'Deploying the app galeria, this can take a while...'
+	make container/build
+	make container/dbvol/create
+	make container/pod/create
+	make container/run/db
+	make container/run/api
