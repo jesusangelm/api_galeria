@@ -1,3 +1,4 @@
+CREATE EXTENSION IF NOT EXISTS citext;
 CREATE TABLE IF NOT EXISTS categories (
   id bigserial PRIMARY KEY,
   name citext UNIQUE NOT NULL,
