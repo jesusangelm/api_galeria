@@ -1,39 +1,9 @@
-# API Gallery
+# API Galeria
 
-Simple Go API for the Gallery App.
-
-## Usage:
-Examples for compilation or execution.
-
-### Compilation
-```sh
-go build ./cmd/api/
-```
-
-### Execution
-```sh
-./api
-
-```
-### Flags
-
-* Port: Specifie the port to listen
-```sh
-./api -port="4000"
-```
-
-* DSN: Specifie the PostgreSQL Database URL
-```sh
-./web -dsn="postgres://user:password@pg_server/db_name"
-# by default this take the ENV Var DATABASE_URL
-```
-You can pass an OS ENV Var in the `-dns` flag like:
-```sh
-./web -dsn=$DATABASE_URL
-```
-
+Simple Go API for gallery on [ArtesaniaSory.Com](https://artesaniasory.com).
 
 ### Features
+
 - Custom middlewares for basic security, request logging and recovery from Panic!.
 - Http router (httprouter).
 - PostgreSQL Database (pgx).
@@ -44,32 +14,31 @@ You can pass an OS ENV Var in the `-dns` flag like:
 - JSON logs
 - Query Timeout Context on each DB Request
 - DB Connection pool configuration
+- CDN (GCore CDN)
+- S3 storage (BackBlaze B2)
+
+### Deploy
+
+I focused on usage with Podman, so you need install it.
+
+1. First run the command below for build the image, create the DB volume and create the network for the pods.
+
+```sh
+make galeria/build
+```
+
+2. run the command below for create the pods and run the containers inside that pods.
+
+```sh
+make galeria/deploy
+```
 
 ### Migrations
 
-- Create a migration:
+Run:
+
 ```sh
-migrate create -seq -ext=.sql -dir=./migrations create_categories_table
+make db/migrations/up
 ```
 
-- Execute UP migrations
-
-NOTE: in both cases, the `sslmode` querystring is optional.
-```sh
-migrate -path=./migrations -database="postgres://user:pass@db_server/db_name?sslmode=disable" up
-```
-
-- Execute down migrations
-```sh
-migrate -path=./migrations -database="postgres://user:pass@db_server/db_name?sslmode=disable" down
-```
-
-- See migration version
-```sh
-migrate -path=./migrations -database="postgres://user:pass@db_server/db_name?sslmode=disable" version
-```
-
-- Go to specific version (migration 1 in this case)
-```sh
-migrate -path=./migrations -database="postgres://user:pass@db_server/db_name?sslmode=disable" goto 1
-```
+NOTE: for now, you will need to run a SQL query for create the first Admin user for the panel.
